@@ -1,28 +1,43 @@
+# gesture_recognizer.py
 import mediapipe as mp
 import numpy as np
+import urllib.request
+import os
+
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from mediapipe.framework.formats import landmark_pb2
 
-mp_draw = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
+MODEL_PATH = "hand_landmarker.task"
+MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+
+# Download model if not present
+if not os.path.exists(MODEL_PATH):
+    print("Downloading hand landmark model...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    print("Done.")
+
 class GestureRecognizer:
     def __init__(self):
-        self.hands = mp_hands.Hands(
-            max_num_hands=1,
-            min_detection_confidence=0.8,
+        options = vision.HandLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=MODEL_PATH),
+            num_hands=1,
+            min_hand_detection_confidence=0.8,
+            min_hand_presence_confidence=0.8,
             min_tracking_confidence=0.8
         )
-        self.gesture_buffer = []
+        self.detector = vision.HandLandmarker.create_from_options(options)
 
     def process(self, rgb_frame):
-        return self.hands.process(rgb_frame)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        return self.detector.detect(mp_image)
 
     def get_landmarks(self, results, frame_shape):
-        if not results.multi_hand_landmarks:
+        if not results.hand_landmarks:
             return None, None
-        hand = results.multi_hand_landmarks[0]
         h, w = frame_shape[:2]
-        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand.landmark]
+        hand = results.hand_landmarks[0]
+        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand]
         return hand, coords
 
     # --- Finger State ---
@@ -38,37 +53,39 @@ class GestureRecognizer:
             return None
 
         fingers = self.fingers_up(coords)
-        index_up   = fingers[1]
-        middle_up  = fingers[2]
-        ring_up    = fingers[3]
-        pinky_up   = fingers[4]
-        thumb_up   = fingers[0]
+        index_up  = fingers[1]
+        middle_up = fingers[2]
+        ring_up   = fingers[3]
+        pinky_up  = fingers[4]
+        thumb_up  = fingers[0]
 
-        # Open palm — all fingers up
         if all(f == 1 for f in fingers):
             return "MUTE_TOGGLE"
-
-        # Fist — all fingers down
         if all(f == 0 for f in fingers):
             return "PLAY_PAUSE"
-
-        # Index only — volume control
         if index_up and not middle_up and not ring_up and not pinky_up:
             return "VOLUME"
-
-        # Index + middle — brightness control
         if index_up and middle_up and not ring_up and not pinky_up:
             return "BRIGHTNESS"
-
-        # Thumb only — previous track
         if thumb_up and not index_up and not middle_up and not ring_up and not pinky_up:
             return "PREV_TRACK"
-
-        # Pinky only — next track
         if pinky_up and not index_up and not middle_up and not ring_up and not thumb_up:
             return "NEXT_TRACK"
 
         return None
 
+    # --- Draw ---
     def draw_landmarks(self, frame, hand_landmarks):
-        mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+        import mediapipe as mp
+        from mediapipe.framework.formats import landmark_pb2
+
+        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+        hand_landmarks_proto.landmark.extend([
+            landmark_pb2.NormalizedLandmark(x=lm.x, y=lm.y, z=lm.z)
+            for lm in hand_landmarks
+        ])
+        mp.solutions.drawing_utils.draw_landmarks(
+            frame,
+            hand_landmarks_proto,
+            mp.solutions.hands.HAND_CONNECTIONS
+        )
