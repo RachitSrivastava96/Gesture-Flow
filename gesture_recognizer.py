@@ -76,16 +76,18 @@ class GestureRecognizer:
 
     # --- Draw ---
     def draw_landmarks(self, frame, hand_landmarks):
-        import mediapipe as mp
-        from mediapipe.framework.formats import landmark_pb2
+    h, w = frame.shape[:2]
+    coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
 
-        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-        hand_landmarks_proto.landmark.extend([
-            landmark_pb2.NormalizedLandmark(x=lm.x, y=lm.y, z=lm.z)
-            for lm in hand_landmarks
-        ])
-        mp.solutions.drawing_utils.draw_landmarks(
-            frame,
-            hand_landmarks_proto,
-            mp.solutions.hands.HAND_CONNECTIONS
-        )
+    connections = [
+        (0,1),(1,2),(2,3),(3,4),
+        (0,5),(5,6),(6,7),(7,8),
+        (5,9),(9,10),(10,11),(11,12),
+        (9,13),(13,14),(14,15),(15,16),
+        (13,17),(17,18),(18,19),(19,20),(0,17)
+    ]
+
+    for a, b in connections:
+        cv2.line(frame, coords[a], coords[b], (0, 200, 0), 2)
+    for cx, cy in coords:
+        cv2.circle(frame, (cx, cy), 4, (0, 255, 0), cv2.FILLED)
