@@ -1,4 +1,3 @@
-# overlay.py
 import cv2
 from config import UI_COLOR, WARNING_COLOR, FONT_SCALE, FONT_THICKNESS
 

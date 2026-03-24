@@ -1,41 +1,26 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-import urllib.request
-import os
-
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-
-MODEL_PATH = "hand_landmarker.task"
-MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
-
-if not os.path.exists(MODEL_PATH):
-    print("Downloading hand landmark model...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    print("Done.")
 
 class GestureRecognizer:
     def __init__(self):
-        options = vision.HandLandmarkerOptions(
-            base_options=python.BaseOptions(model_asset_path=MODEL_PATH),
-            num_hands=1,
-            min_hand_detection_confidence=0.8,
-            min_hand_presence_confidence=0.8,
+        self.mp_hands = mp.solutions.hands
+        self.detector = self.mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=1,
+            min_detection_confidence=0.8,
             min_tracking_confidence=0.8
         )
-        self.detector = vision.HandLandmarker.create_from_options(options)
 
     def process(self, rgb_frame):
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        return self.detector.detect(mp_image)
+        return self.detector.process(rgb_frame)
 
     def get_landmarks(self, results, frame_shape):
-        if not results.hand_landmarks:
+        if not results.multi_hand_landmarks:
             return None, None
         h, w = frame_shape[:2]
-        hand = results.hand_landmarks[0]
-        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand]
+        hand = results.multi_hand_landmarks[0]
+        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand.landmark]
         return hand, coords
 
     # --- Finger State ---
@@ -75,7 +60,7 @@ class GestureRecognizer:
     # --- Draw ---
     def draw_landmarks(self, frame, hand_landmarks):
         h, w = frame.shape[:2]
-        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
+        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks.landmark]
 
         connections = [
             (0,1),(1,2),(2,3),(3,4),

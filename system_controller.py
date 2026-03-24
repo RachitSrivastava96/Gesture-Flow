@@ -1,17 +1,17 @@
-# system_controller.py
+import numpy as np
 import screen_brightness_control as sbc
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+from pycaw.utils import AudioUtilities as AU
 from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-import numpy as np
 
 class SystemController:
     def __init__(self):
-        # Audio setup
         devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        # Newer pycaw: access the COM interface via _dev, then Activate
+        interface = devices._dev.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
         self.volume = cast(interface, POINTER(IAudioEndpointVolume))
-        self.vol_range = self.volume.GetVolumeRange()  # (min_dB, max_dB, step)
+        self.vol_range = self.volume.GetVolumeRange()
         self.muted = False
 
     # --- Volume ---
