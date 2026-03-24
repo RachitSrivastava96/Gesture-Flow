@@ -1,4 +1,4 @@
-# gesture_recognizer.py
+import cv2
 import mediapipe as mp
 import numpy as np
 import urllib.request
@@ -6,12 +6,10 @@ import os
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-from mediapipe.framework.formats import landmark_pb2
 
 MODEL_PATH = "hand_landmarker.task"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 
-# Download model if not present
 if not os.path.exists(MODEL_PATH):
     print("Downloading hand landmark model...")
     urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
@@ -76,18 +74,18 @@ class GestureRecognizer:
 
     # --- Draw ---
     def draw_landmarks(self, frame, hand_landmarks):
-    h, w = frame.shape[:2]
-    coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
+        h, w = frame.shape[:2]
+        coords = [(int(lm.x * w), int(lm.y * h)) for lm in hand_landmarks]
 
-    connections = [
-        (0,1),(1,2),(2,3),(3,4),
-        (0,5),(5,6),(6,7),(7,8),
-        (5,9),(9,10),(10,11),(11,12),
-        (9,13),(13,14),(14,15),(15,16),
-        (13,17),(17,18),(18,19),(19,20),(0,17)
-    ]
+        connections = [
+            (0,1),(1,2),(2,3),(3,4),
+            (0,5),(5,6),(6,7),(7,8),
+            (5,9),(9,10),(10,11),(11,12),
+            (9,13),(13,14),(14,15),(15,16),
+            (13,17),(17,18),(18,19),(19,20),(0,17)
+        ]
 
-    for a, b in connections:
-        cv2.line(frame, coords[a], coords[b], (0, 200, 0), 2)
-    for cx, cy in coords:
-        cv2.circle(frame, (cx, cy), 4, (0, 255, 0), cv2.FILLED)
+        for a, b in connections:
+            cv2.line(frame, coords[a], coords[b], (0, 200, 0), 2)
+        for cx, cy in coords:
+            cv2.circle(frame, (cx, cy), 4, (0, 255, 0), cv2.FILLED)
