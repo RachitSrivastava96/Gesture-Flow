@@ -177,11 +177,6 @@ Full pinned versions are listed in `requirements.txt`.
 
 ---
 
-## License
-
-This project does not ship a license file in the repository snapshot described here. If you add a license, place it in the root of the repository (for example `LICENSE`) and summarize it in this section.
-
----
 
 ## Contact
 
