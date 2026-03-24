@@ -1,9 +1,10 @@
 import mediapipe as mp
 import numpy as np
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 
-mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
-
+mp_hands = mp.solutions.hands
 class GestureRecognizer:
     def __init__(self):
         self.hands = mp_hands.Hands(
