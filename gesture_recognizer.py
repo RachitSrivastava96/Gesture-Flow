@@ -24,10 +24,13 @@ class GestureRecognizer:
         return hand, coords
 
     # --- Finger State ---
+    # --- Finger State ---
     def fingers_up(self, coords):
-        tips = [8, 12, 16, 20]
+        tips    = [8, 12, 16, 20]
         fingers = [1 if coords[tip][1] < coords[tip - 2][1] else 0 for tip in tips]
-        thumb = 1 if coords[4][0] > coords[3][0] else 0
+
+        # Thumb: compare tip to base horizontally, but also check it's clearly extended
+        thumb = 1 if abs(coords[4][0] - coords[2][0]) > 40 else 0
         return [thumb] + fingers
 
     # --- Gesture Detection ---
@@ -35,24 +38,37 @@ class GestureRecognizer:
         if coords is None:
             return None
 
-        fingers = self.fingers_up(coords)
+        fingers   = self.fingers_up(coords)
         index_up  = fingers[1]
         middle_up = fingers[2]
         ring_up   = fingers[3]
         pinky_up  = fingers[4]
         thumb_up  = fingers[0]
 
-        if all(f == 1 for f in fingers):
-            return "MUTE_TOGGLE"
-        if all(f == 0 for f in fingers):
+        non_thumb = [index_up, middle_up, ring_up, pinky_up]
+
+        # Fist — all four fingers clearly down, thumb tucked
+        if sum(non_thumb) == 0 and not thumb_up:
             return "PLAY_PAUSE"
+
+        # Open palm — all up
+        if sum(non_thumb) == 4:
+            return "MUTE_TOGGLE"
+
+        # Index only
         if index_up and not middle_up and not ring_up and not pinky_up:
             return "VOLUME"
+
+        # Index + middle
         if index_up and middle_up and not ring_up and not pinky_up:
             return "BRIGHTNESS"
-        if thumb_up and not index_up and not middle_up and not ring_up and not pinky_up:
+
+        # Thumb only — clearly extended, all others down
+        if thumb_up and sum(non_thumb) == 0:
             return "PREV_TRACK"
-        if pinky_up and not index_up and not middle_up and not ring_up and not thumb_up:
+
+        # Pinky only
+        if pinky_up and not index_up and not middle_up and not ring_up:
             return "NEXT_TRACK"
 
         return None
