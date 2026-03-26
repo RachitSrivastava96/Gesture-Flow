@@ -6,6 +6,8 @@ from gesture_recognizer import GestureRecognizer
 from system_controller import SystemController
 from overlay import Overlay
 
+ONE_SHOT = {"PLAY_PAUSE", "NEXT_TRACK", "PREV_TRACK", "SCREENSHOT"}
+
 def main():
     cap = cv2.VideoCapture(CAMERA_INDEX)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
@@ -19,8 +21,7 @@ def main():
     gesture_counter = {}
     last_triggered = None
     muted = False
-
-    # Smoothing buffers
+    mute_hold_start = None
     vol_buffer = []
     bright_buffer = []
 
@@ -31,33 +32,28 @@ def main():
 
         frame = cv2.flip(frame, 1)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
         results = recognizer.process(rgb)
         hand_landmarks, coords = recognizer.get_landmarks(results, frame.shape)
 
-        # FPS
         curr_time = time.time()
         fps = 1 / (curr_time - prev_time + 1e-9)
         prev_time = curr_time
 
-        gesture = recognizer.detect_gesture(coords)
+        gesture, extra = recognizer.detect_gesture(coords)
 
-        # Gesture hold counter
         if gesture:
             gesture_counter[gesture] = gesture_counter.get(gesture, 0) + 1
         else:
             gesture_counter = {}
 
-        confirmed_gesture = None
+        confirmed = None
         if gesture and gesture_counter.get(gesture, 0) >= GESTURE_HOLD_FRAMES:
-            confirmed_gesture = gesture
+            confirmed = gesture
 
-        # --- Actions ---
         vol = controller.get_volume()
         bright = controller.get_brightness()
 
-        if confirmed_gesture == "VOLUME" and coords:
-            # Index fingertip Y position controls volume
+        if confirmed == "VOLUME" and coords:
             y = coords[8][1]
             raw_vol = int(np.interp(y, [100, FRAME_HEIGHT - 100], [100, 0]))
             vol_buffer.append(raw_vol)
@@ -66,7 +62,7 @@ def main():
             vol = int(np.mean(vol_buffer))
             controller.set_volume(vol)
 
-        elif confirmed_gesture == "BRIGHTNESS" and coords:
+        elif confirmed == "BRIGHTNESS" and coords:
             y = coords[8][1]
             raw_bright = int(np.interp(y, [100, FRAME_HEIGHT - 100], [100, 10]))
             bright_buffer.append(raw_bright)
@@ -75,34 +71,45 @@ def main():
             bright = int(np.mean(bright_buffer))
             controller.set_brightness(bright)
 
-        elif confirmed_gesture == "PLAY_PAUSE" and confirmed_gesture != last_triggered:
-            controller.play_pause()
+        elif confirmed in ONE_SHOT and confirmed != last_triggered:
+            if confirmed == "PLAY_PAUSE":   controller.play_pause()
+            elif confirmed == "NEXT_TRACK": controller.next_track()
+            elif confirmed == "PREV_TRACK": controller.prev_track()
+            elif confirmed == "SCREENSHOT": controller.take_screenshot()
 
-        elif confirmed_gesture == "NEXT_TRACK" and confirmed_gesture != last_triggered:
-            controller.next_track()
+        # Mute evaluated every frame independently so the 1s hold can accumulate
+        if confirmed == "MUTE_TOGGLE":
+            if mute_hold_start is None:
+                mute_hold_start = time.time()
+            elif time.time() - mute_hold_start >= 1.0:
+                muted = controller.toggle_mute()
+                overlay.notify("MUTE_TOGGLE")
+                mute_hold_start = None
+        else:
+            mute_hold_start = None
 
-        elif confirmed_gesture == "PREV_TRACK" and confirmed_gesture != last_triggered:
-            controller.prev_track()
+        last_triggered = confirmed if confirmed in ONE_SHOT else None
 
-        elif confirmed_gesture == "MUTE_TOGGLE" and confirmed_gesture != last_triggered:
-            muted = controller.toggle_mute()
-
-        last_triggered = confirmed_gesture if confirmed_gesture in ["PLAY_PAUSE", "NEXT_TRACK", "PREV_TRACK", "MUTE_TOGGLE"] else None
-
-        # --- Draw ---
         if hand_landmarks:
             recognizer.draw_landmarks(frame, hand_landmarks)
+        else:
+            overlay.draw_no_hand(frame)
 
-        overlay.draw_gesture(frame, confirmed_gesture)
+        overlay.notify(confirmed)
+        overlay.draw_gesture_panel(frame)
+        overlay.draw_level_panel(frame, vol, "VOL", x=40)
+        overlay.draw_level_panel(frame, bright, "BRIGHT", x=140)
         overlay.draw_mute_badge(frame, muted)
         overlay.draw_fps(frame, fps)
-        overlay.draw_bar(frame, vol, "VOL", x=50)
-        overlay.draw_bar(frame, bright, "BRIGHT", x=120)
-        overlay.draw_status(frame, "Press Q to quit")
+        overlay.draw_status(frame, "Press Q to quit  |  G for guide")
 
+        overlay.draw_guide(frame)
         cv2.imshow("GestureFlow", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
             break
+        if key == ord('g'):
+            overlay.show_guide = not overlay.show_guide
 
     cap.release()
     cv2.destroyAllWindows()
